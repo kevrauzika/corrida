@@ -123,7 +123,6 @@ export default function AzureDevOpsDashboard() {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* ✅ ALTERAÇÃO: Este card agora mostra a pontuação do líder */}
             <Card className="bg-gray-900 border-gray-700">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">

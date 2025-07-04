@@ -1,5 +1,29 @@
 import { NextResponse } from 'next/server';
 
+// ✅ NOVO: Interfaces para tipagem dos dados da API
+interface WorkItemFromApi {
+  id: number;
+  fields: {
+    'System.Id': number;
+    'System.Title': string;
+    'System.State': string;
+    'System.BoardColumn': string;
+    'System.AssignedTo'?: { displayName: string };
+    'Custom.Qualidade'?: { displayName: string };
+    'Microsoft.VSTS.Common.Risk'?: string;
+    'Microsoft.VSTS.Common.StateChangeDate'?: string;
+  }
+}
+
+interface DetailedWorkItemForApi {
+  id: number;
+  title: string;
+  dev: string;
+  qa: string;
+  complexity: string;
+  resolvedDate: string;
+}
+
 async function getWorkItemIds() {
   const org = process.env.AZURE_DEVOPS_ORG;
   const project = process.env.AZURE_DEVOPS_PROJECT;
@@ -39,13 +63,14 @@ async function getWorkItemIds() {
   return result.workItems ? result.workItems.map((item: { id: number }) => item.id) : [];
 }
   
-async function getWorkItemDetails(ids: number[]) {
+// ✅ ALTERAÇÃO: Adicionado tipo de retorno Promise<WorkItemFromApi[]>
+async function getWorkItemDetails(ids: number[]): Promise<WorkItemFromApi[]> {
     const org = process.env.AZURE_DEVOPS_ORG;
     const pat = process.env.AZURE_DEVOPS_PAT;
     if (ids.length === 0) return [];
 
     const batchSize = 200;
-    const workItemsDetails = [];
+    const workItemsDetails: WorkItemFromApi[] = [];
   
     const fields = [
       "System.Id",
@@ -73,13 +98,14 @@ async function getWorkItemDetails(ids: number[]) {
         console.error("Erro nos detalhes do Work Item:", response.status, errorText);
         throw new Error(`Erro ao buscar detalhes de work items: ${response.statusText}`);
       }
-      const result = await response.json();
+      // ✅ ALTERAÇÃO: Adicionado tipo para a resposta da API
+      const result = await response.json() as { value: WorkItemFromApi[] };
       workItemsDetails.push(...result.value);
     }
     return workItemsDetails;
 }
 
-function getPointsFromRisk(risk: string): number {
+function getPointsFromRisk(risk: string | undefined): number {
   switch (risk) {
     case '1 - Baixo':
       return 5;
@@ -92,9 +118,10 @@ function getPointsFromRisk(risk: string): number {
   }
 }
 
-function processDataForDashboard(workItems: any[]) {
+// ✅ ALTERAÇÃO: Parâmetros e variáveis com tipos definidos
+function processDataForDashboard(workItems: WorkItemFromApi[]) {
   const developerMap = new Map<string, { name: string; inDevelopment: number; completed: number; score: number; }>();
-  const detailedWorkItems: any[] = [];
+  const detailedWorkItems: DetailedWorkItemForApi[] = [];
   
   const dailyEvolutionMap = new Map<string, { [devName: string]: number }>();
   const allDevs = new Set<string>();
@@ -161,7 +188,6 @@ function processDataForDashboard(workItems: any[]) {
   const sortedDates = Array.from(dailyEvolutionMap.keys()).sort();
   const evolutionData = sortedDates.map(date => {
       const dailyCounts = dailyEvolutionMap.get(date)!;
-      // ✅ CORREÇÃO: O tipo agora permite uma propriedade 'date' string e outras chaves com valores numéricos.
       const entry: { date: string; [key: string]: string | number } = { date };
       
       allDevs.forEach(dev => {
