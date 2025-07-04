@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-// ✅ CORREÇÃO: Removido 'TooltipProps' que não estava sendo usado.
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
 import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks, ExternalLink } from "lucide-react"
 
@@ -27,6 +26,7 @@ interface InProgressWorkItem {
   dev: string;
   qa: string;
   complexity: string;
+  boardColumn: string;
 }
 
 interface DetailedWorkItem extends InProgressWorkItem {
@@ -67,18 +67,24 @@ interface CustomTooltipProps {
   label?: string;
 }
 
+// ✅ CORREÇÃO FINAL: Lógica de cor ajustada para legibilidade
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg text-white">
         <p className="label font-bold text-blue-400">{`${label}`}</p>
         <div>
-          {payload.map((pld) => (
-            <div key={pld.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: pld.color }}>{`${pld.name}: `}</span>
-              <span className="ml-2 font-semibold" style={{ color: pld.name === 'Alta' ? '#FFFFFF' : '#d1d5db' }}>{pld.value}</span>
-            </div>
-          ))}
+          {payload.map((pld) => {
+            // Se o nome for 'Média', força a cor do texto para branco, senão usa a cor da barra.
+            const textColor = pld.name === 'Média' ? '#FFFFFF' : pld.color;
+            
+            return (
+              <div key={pld.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: textColor }}>{`${pld.name}: `}</span>
+                <span className="ml-2 font-semibold text-white">{pld.value}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -86,7 +92,6 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
 
   return null;
 };
-
 
 export default function AzureDevOpsDashboard() {
   const [data, setData] = useState(initialData);
@@ -159,8 +164,8 @@ export default function AzureDevOpsDashboard() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-blue-400">Painel de Chamados Resolvidos</h1>
-              <p className="text-gray-300 mt-2">Acompanhamento da Sprint Livre - Azure DevOps</p>
+              <h1 className="text-3xl font-bold text-blue-400">Chamados Resolvidos</h1>
+              <p className="text-gray-300 mt-2">Acompanhamento da Sprint Livre</p>
             </div>
             <Button onClick={fetchData} disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white">
               <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
@@ -300,7 +305,7 @@ export default function AzureDevOpsDashboard() {
                                 <TableRow>
                                     <TableHead className="text-black font-semibold">Chamado</TableHead>
                                     <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
-                                    <TableHead className="text-black font-semibold">Complexidade</TableHead>
+                                    <TableHead className="text-black font-semibold">Board</TableHead>
                                     <TableHead className="text-black font-semibold text-center">Link</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -311,7 +316,7 @@ export default function AzureDevOpsDashboard() {
                                             {`#${item.id} - ${item.title}`}
                                         </TableCell>
                                         <TableCell className="text-black">{item.dev}</TableCell>
-                                        <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
+                                        <TableCell><Badge variant="outline">{item.boardColumn}</Badge></TableCell>
                                         <TableCell className="text-center">
                                             <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
                                             <ExternalLink className="w-4 h-4 inline-block"/>
@@ -326,8 +331,7 @@ export default function AzureDevOpsDashboard() {
 
                 <Card className="border-gray-200">
                     <CardHeader>
-                        {/* ✅ CORREÇÃO: Aspas simples trocadas por &apos; */}
-                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados em Andamento</span></CardTitle>
+                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados não Pontuados</span></CardTitle>
                         <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em &apos;Nova&apos;.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -336,7 +340,7 @@ export default function AzureDevOpsDashboard() {
                                 <TableRow>
                                     <TableHead className="text-black font-semibold">Chamado</TableHead>
                                     <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
-                                    <TableHead className="text-black font-semibold">Complexidade</TableHead>
+                                    <TableHead className="text-black font-semibold">Board</TableHead>
                                     <TableHead className="text-black font-semibold text-center">Link</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -347,7 +351,7 @@ export default function AzureDevOpsDashboard() {
                                             {`#${item.id} - ${item.title}`}
                                         </TableCell>
                                         <TableCell className="text-black">{item.dev}</TableCell>
-                                        <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
+                                        <TableCell><Badge variant="outline">{item.boardColumn}</Badge></TableCell>
                                         <TableCell className="text-center">
                                             <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
                                             <ExternalLink className="w-4 h-4 inline-block"/>
@@ -363,7 +367,7 @@ export default function AzureDevOpsDashboard() {
 
             <Card className="border-gray-200">
               <CardHeader>
-                  <CardTitle className="text-black flex items-center space-x-2"><TrendingUp className="w-5 h-5 text-blue-600" /><span>Evolução Diária por Desenvolvedor</span></CardTitle>
+                  <CardTitle className="text-black flex items-center space-x-2"><TrendingUp className="w-5 h-5 text-blue-600" /><span>Chamados Diários por Desenvolvedor</span></CardTitle>
                   <CardDescription className="text-gray-600">Chamados concluídos por dia para cada desenvolvedor.</CardDescription>
               </CardHeader>
               <CardContent>

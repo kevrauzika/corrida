@@ -14,6 +14,7 @@ interface WorkItemFromApi {
   }
 }
 
+// ✅ ALTERAÇÃO: Adicionada a propriedade boardColumn
 interface DetailedWorkItemForApi {
   id: number;
   title: string;
@@ -21,14 +22,17 @@ interface DetailedWorkItemForApi {
   qa: string;
   complexity: string;
   resolvedDate: string;
+  boardColumn: string; 
 }
 
+// ✅ ALTERAÇÃO: Adicionada a propriedade boardColumn
 interface InProgressWorkItem {
     id: number;
     title: string;
     dev: string;
     qa: string;
     complexity: string;
+    boardColumn: string;
 }
 
 async function getWorkItemIds() {
@@ -155,12 +159,11 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
     const risk = fields["Microsoft.VSTS.Common.Risk"];
 
     if (!assignedTo?.displayName || !boardColumn || !state) {
-        return; // Pula itens sem os dados essenciais
+        return;
     }
 
-    // ✅ CORREÇÃO FINAL: Verifica e descarta itens no estado "Nova" no início do loop.
     if (state.trim().toLowerCase() === 'nova') {
-        return; // Ignora completamente os itens que estão no estado "Nova"
+        return;
     }
     
     const devName = assignedTo.displayName;
@@ -180,7 +183,6 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
     
     const devData = developerMap.get(devName)!;
 
-    // Se não for "Nova", verifica se está "Concluído"
     if (concludedColumns.has(boardColumn)) {
       devData.completed++;
       devData.score += getPointsFromRisk(risk);
@@ -203,10 +205,10 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
           qa: fields["Custom.Qualidade"]?.displayName || "N/A",
           complexity: risk || "Não definida",
           resolvedDate: dateKey,
+          boardColumn: boardColumn, // ✅ ALTERAÇÃO: Adicionado boardColumn
         });
       }
     } else {
-      // Se não for "Nova" e não for "Concluído", então está "Em Andamento"
       devData.inDevelopment++;
       inProgressWorkItems.push({
           id: item.id,
@@ -214,6 +216,7 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
           dev: devName,
           qa: fields["Custom.Qualidade"]?.displayName || "N/A",
           complexity: risk || "Não definida",
+          boardColumn: boardColumn, // ✅ ALTERAÇÃO: Adicionado boardColumn
       });
     }
   });
