@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// As duas primeiras funções (getWorkItemIds, getWorkItemDetails) não mudam
 async function getWorkItemIds() {
   const org = process.env.AZURE_DEVOPS_ORG;
   const project = process.env.AZURE_DEVOPS_PROJECT;
@@ -55,7 +54,8 @@ async function getWorkItemDetails(ids: number[]) {
       "System.AssignedTo",
       "Custom.Qualidade",
       "Microsoft.VSTS.Common.Risk",
-      "Microsoft.VSTS.Common.StateChangeDate"
+      "Microsoft.VSTS.Common.StateChangeDate",
+      "System.BoardColumn"
     ];
 
     for (let i = 0; i < ids.length; i += batchSize) {
@@ -79,62 +79,74 @@ async function getWorkItemDetails(ids: number[]) {
     return workItemsDetails;
 }
 
+function getPointsFromRisk(risk: string): number {
+  switch (risk) {
+    case '1 - Baixo':
+      return 5;
+    case '2 - Médio':
+      return 10;
+    case '3 - Alta':
+      return 15;
+    default:
+      return 0;
+  }
+}
+
 function processDataForDashboard(workItems: any[]) {
-  const developerMap = new Map<string, { name: string; inDevelopment: number; qa: number; completed: number; }>();
-  // Usaremos um Map para agrupar por hora
-  const hourlyMap = new Map<string, { dateHour: string; total: number }>();
+  const developerMap = new Map<string, { name: string; inDevelopment: number; completed: number; score: number; }>();
   const detailedWorkItems: any[] = [];
+  
+  const dailyEvolutionMap = new Map<string, { [devName: string]: number }>();
+  const allDevs = new Set<string>();
+
+  const concludedColumns = new Set([
+    'Code Review',
+    'Wait Deploy',
+    'Publicado',
+    'Aguardando comunicação',
+    'Finalizado'
+  ]);
 
   workItems.forEach(item => {
     const fields = item.fields;
     const assignedTo = fields["System.AssignedTo"];
-    const state = fields["System.State"];
+    const boardColumn = fields["System.BoardColumn"];
+    const risk = fields["Microsoft.VSTS.Common.Risk"];
 
-    if (assignedTo && assignedTo.displayName && state) {
+    if (assignedTo && assignedTo.displayName && boardColumn) {
       const devName = assignedTo.displayName;
+      allDevs.add(devName); 
 
       if (!developerMap.has(devName)) {
-        developerMap.set(devName, { name: devName, inDevelopment: 0, qa: 0, completed: 0 });
+        developerMap.set(devName, { name: devName, inDevelopment: 0, completed: 0, score: 0 });
       }
       
       const devData = developerMap.get(devName)!;
-      const stateLower = state.toLowerCase();
 
-      switch (stateLower) {
-        case 'em desenvolvimento':
-        case 'code review':
-          devData.inDevelopment++;
-          break;
-        case 'em teste':
-          devData.qa++;
-          break;
-        case 'closed':
-        case 'aguardando publicação':
-        case 'aguardando release':
-          devData.completed++;
+      if (concludedColumns.has(boardColumn)) {
+        devData.completed++;
+        devData.score += getPointsFromRisk(risk);
+        
+        const stateChangeDateStr = fields["Microsoft.VSTS.Common.StateChangeDate"];
+        if (stateChangeDateStr) {
+          const resolvedDate = new Date(stateChangeDateStr);
+          const dateKey = resolvedDate.toISOString().split('T')[0];
           
-          const stateChangeDateStr = fields["Microsoft.VSTS.Common.StateChangeDate"];
-          if (stateChangeDateStr) {
-            const resolvedDate = new Date(stateChangeDateStr);
-            // ✅ AQUI ESTÁ A MUDANÇA: Criamos uma chave com Ano-Mês-DiaT Hora
-            const dateHourKey = resolvedDate.toISOString().substring(0, 13); // Formato: YYYY-MM-DDTHH
+          const dayData = dailyEvolutionMap.get(dateKey) || {};
+          dayData[devName] = (dayData[devName] || 0) + 1;
+          dailyEvolutionMap.set(dateKey, dayData);
 
-            // Agrupamos a contagem por essa chave de hora
-            const hourEntry = hourlyMap.get(dateHourKey) || { dateHour: dateHourKey, total: 0 };
-            hourEntry.total++;
-            hourlyMap.set(dateHourKey, hourEntry);
-
-            // A lista detalhada continua igual
-            detailedWorkItems.push({
-              id: item.id,
-              title: fields["System.Title"] || "N/A",
-              dev: devName,
-              qa: fields["Custom.Qualidade"]?.displayName || "N/A",
-              complexity: fields["Microsoft.VSTS.Common.Risk"] || "Não definida",
-              resolvedDate: resolvedDate.toISOString().split('T')[0],
-            });
-          }
-          break;
+          detailedWorkItems.push({
+            id: item.id,
+            title: fields["System.Title"] || "N/A",
+            dev: devName,
+            qa: fields["Custom.Qualidade"]?.displayName || "N/A",
+            complexity: risk || "Não definida",
+            resolvedDate: dateKey,
+          });
+        }
+      } else if (boardColumn.toLowerCase().includes('desenvolvimento')) {
+          devData.inDevelopment++;
       }
     }
   });
@@ -142,16 +154,26 @@ function processDataForDashboard(workItems: any[]) {
   const finalDevelopersData = Array.from(developerMap.values()).map(dev => ({
     name: dev.name,
     inDevelopment: dev.inDevelopment || 0,
-    qa: dev.qa || 0,
     completed: dev.completed || 0,
+    score: dev.score || 0,
   }));
   
-  // Ordenamos os dados por hora antes de retornar
-  const sortedHourlyData = Array.from(hourlyMap.values()).sort((a, b) => a.dateHour.localeCompare(b.dateHour));
+  const sortedDates = Array.from(dailyEvolutionMap.keys()).sort();
+  const evolutionData = sortedDates.map(date => {
+      const dailyCounts = dailyEvolutionMap.get(date)!;
+      // ✅ CORREÇÃO: O tipo agora permite uma propriedade 'date' string e outras chaves com valores numéricos.
+      const entry: { date: string; [key: string]: string | number } = { date };
+      
+      allDevs.forEach(dev => {
+          entry[dev] = dailyCounts[dev] || 0;
+      });
+
+      return entry;
+  });
 
   return {
     developers: finalDevelopersData,
-    hourlyData: sortedHourlyData, // ✅ Renomeamos para 'hourlyData'
+    evolutionData: evolutionData,
     detailedWorkItems: detailedWorkItems.sort((a, b) => new Date(b.resolvedDate).getTime() - new Date(a.resolvedDate).getTime()),
   };
 }
@@ -165,7 +187,7 @@ export async function GET() {
 
     if (workItemIds.length === 0) {
         console.log("[2a] No items found for this sprint. Returning empty data.");
-        return NextResponse.json({ developers: [], timelineData: [], detailedWorkItems: [] });
+        return NextResponse.json({ developers: [], evolutionData: [], detailedWorkItems: [] });
     }
 
     console.log("[3] Fetching details for all items...");

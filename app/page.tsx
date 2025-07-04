@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
-import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks } from "lucide-react"
+import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks, ExternalLink } from "lucide-react"
 
-// Interfaces para os dados da API
+// Interfaces
 interface Developer {
   name: string;
   inDevelopment: number;
-  qa: number;
   completed: number;
-  position?: number; // Adicionado pelo frontend
+  score: number;
+  position?: number;
 }
 
 interface DetailedWorkItem {
@@ -26,20 +26,20 @@ interface DetailedWorkItem {
   resolvedDate: string;
 }
 
-interface TimelineData {
+interface EvolutionDataEntry {
   date: string;
-  total: number;
+  [developer: string]: number | string;
 }
 
 interface ApiResponse {
   developers: Omit<Developer, 'position'>[];
-  timelineData: TimelineData[];
+  evolutionData: EvolutionDataEntry[];
   detailedWorkItems: DetailedWorkItem[];
 }
 
-const initialData: { developers: Developer[], timelineData: TimelineData[], detailedWorkItems: DetailedWorkItem[] } = {
+const initialData: { developers: Developer[], evolutionData: EvolutionDataEntry[], detailedWorkItems: DetailedWorkItem[] } = {
   developers: [],
-  timelineData: [],
+  evolutionData: [],
   detailedWorkItems: [],
 }
 
@@ -48,6 +48,8 @@ export default function AzureDevOpsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  
+  const lineColors = ["#2563eb", "#16a34a", "#f97316", "#ef4444", "#8b5cf6", "#d946ef", "#0891b2", "#65a30d"];
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -62,9 +64,8 @@ export default function AzureDevOpsDashboard() {
 
       const newData: ApiResponse = await response.json();
 
-      // O ranking é baseado nos itens concluídos
       const sortedDevelopers = [...newData.developers]
-        .sort((a, b) => b.completed - a.completed)
+        .sort((a, b) => b.score - a.score)
         .map((dev, index) => ({ ...dev, position: index + 1 }));
 
       setData({ ...newData, developers: sortedDevelopers });
@@ -85,12 +86,12 @@ export default function AzureDevOpsDashboard() {
     fetchData();
   }, [])
 
-  // ✅ CORREÇÃO: Usar 'completed' para o total
-  const totalResolved = data.developers.reduce((sum, dev) => sum + dev.completed, 0);
   const currentLeader = data.developers.length > 0 ? data.developers[0] : null;
 
   const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("pt-BR", { month: "short", day: "numeric" });
+    const d = new Date(date);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
   }
 
   if (error) {
@@ -122,13 +123,14 @@ export default function AzureDevOpsDashboard() {
             </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* ✅ ALTERAÇÃO: Este card agora mostra a pontuação do líder */}
             <Card className="bg-gray-900 border-gray-700">
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="w-5 h-5 text-blue-400" />
                   <div>
-                    <p className="text-sm text-gray-400">Total Resolvidos</p>
-                    <p className="text-2xl font-bold text-white">{isLoading ? "..." : totalResolved}</p>
+                    <p className="text-sm text-gray-400">Pontuação do Líder</p>
+                    <p className="text-2xl font-bold text-white">{isLoading ? "..." : (currentLeader?.score ?? 0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -182,7 +184,7 @@ export default function AzureDevOpsDashboard() {
               <Card className="border-gray-200">
                 <CardHeader>
                   <CardTitle className="text-black flex items-center space-x-2"><Trophy className="w-5 h-5 text-blue-600" /><span>Ranking de Desenvolvedores</span></CardTitle>
-                  <CardDescription className="text-gray-600">Classificação por chamados concluídos</CardDescription>
+                  <CardDescription className="text-gray-600">Classificação por pontuação de chamados concluídos</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -190,7 +192,8 @@ export default function AzureDevOpsDashboard() {
                       <TableRow>
                         <TableHead className="text-black font-semibold">Posição</TableHead>
                         <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
-                        <TableHead className="text-black font-semibold text-right">Concluídos</TableHead>
+                        <TableHead className="text-black font-semibold text-center">Concluídos</TableHead>
+                        <TableHead className="text-black font-semibold text-right">Pontuação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -203,9 +206,14 @@ export default function AzureDevOpsDashboard() {
                             </div>
                           </TableCell>
                           <TableCell className={`${index === 0 ? "font-bold text-blue-600" : "text-black"}`}>{dev.name}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="secondary" className="bg-gray-100 text-black">
+                              {dev.completed}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">
                             <Badge variant={index === 0 ? "default" : "secondary"} className={index === 0 ? "bg-green-600 text-white" : "bg-gray-100 text-black"}>
-                              {dev.completed}
+                              {dev.score}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -228,7 +236,6 @@ export default function AzureDevOpsDashboard() {
                       <Tooltip cursor={{ fill: 'rgba(239, 246, 255, 0.5)' }} contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}/>
                       <Legend />
                       <Bar dataKey="completed" stackId="a" fill="#16a34a" name="Concluído" />
-                      <Bar dataKey="qa" stackId="a" fill="#f97316" name="Em QA" />
                       <Bar dataKey="inDevelopment" stackId="a" fill="#2563eb" name="Em Desenvolvimento" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -249,20 +256,24 @@ export default function AzureDevOpsDashboard() {
                               <TableHead className="text-black font-semibold">QA</TableHead>
                               <TableHead className="text-black font-semibold">Complexidade</TableHead>
                               <TableHead className="text-black font-semibold text-right">Data Resolução</TableHead>
+                              <TableHead className="text-black font-semibold text-center">Link</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {data.detailedWorkItems.map((item) => (
                               <TableRow key={item.id}>
-                                  <TableCell className="font-medium text-black max-w-xs truncate">
-                                      <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" title={item.title} className="hover:underline">
-                                          {item.title}
-                                      </a>
+                                  <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
+                                      {`#${item.id} - ${item.title}`}
                                   </TableCell>
                                   <TableCell className="text-black">{item.dev}</TableCell>
                                   <TableCell className="text-black">{item.qa}</TableCell>
                                   <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
                                   <TableCell className="text-right text-black">{formatDate(item.resolvedDate)}</TableCell>
+                                  <TableCell className="text-center">
+                                    <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                      <ExternalLink className="w-4 h-4 inline-block"/>
+                                    </a>
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -271,17 +282,29 @@ export default function AzureDevOpsDashboard() {
             </Card>
             <Card className="border-gray-200">
               <CardHeader>
-                  <CardTitle className="text-black flex items-center space-x-2"><TrendingUp className="w-5 h-5 text-blue-600" /><span>Evolução dos Chamados Resolvidos</span></CardTitle>
-                  <CardDescription className="text-gray-600">Progresso acumulado ao longo da Sprint Livre</CardDescription>
+                  <CardTitle className="text-black flex items-center space-x-2"><TrendingUp className="w-5 h-5 text-blue-600" /><span>Evolução Diária por Desenvolvedor</span></CardTitle>
+                  <CardDescription className="text-gray-600">Chamados concluídos por dia para cada desenvolvedor.</CardDescription>
               </CardHeader>
               <CardContent>
                   <ResponsiveContainer width="100%" height={400}>
-                  <LineChart data={data.timelineData}>
+                  <LineChart data={data.evolutionData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#000" }} tickFormatter={formatDate} />
                       <YAxis tick={{ fontSize: 12, fill: "#000" }} allowDecimals={false} />
                       <Tooltip contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }} labelFormatter={(value) => `Data: ${formatDate(value)}`}/>
-                      <Line type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={3} dot={{ fill: "#2563eb", strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: "#2563eb" }}/>
+                      <Legend />
+                      {data.developers.map((dev, index) => (
+                        <Line
+                            key={dev.name}
+                            type="monotone"
+                            dataKey={dev.name}
+                            name={dev.name}
+                            stroke={lineColors[index % lineColors.length]}
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                        />
+                      ))}
                   </LineChart>
                   </ResponsiveContainer>
               </CardContent>
