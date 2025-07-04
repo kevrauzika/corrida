@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
 import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks, ExternalLink } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Interfaces
 interface Developer {
@@ -67,7 +68,6 @@ interface CustomTooltipProps {
   label?: string;
 }
 
-// ✅ CORREÇÃO FINAL: Lógica de cor ajustada para legibilidade
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
@@ -75,7 +75,6 @@ const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
         <p className="label font-bold text-blue-400">{`${label}`}</p>
         <div>
           {payload.map((pld) => {
-            // Se o nome for 'Média', força a cor do texto para branco, senão usa a cor da barra.
             const textColor = pld.name === 'Média' ? '#FFFFFF' : pld.color;
             
             return (
@@ -98,6 +97,9 @@ export default function AzureDevOpsDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  // ✅ CORREÇÃO: Valor inicial do filtro alterado para 'all'
+  const [resolvedFilter, setResolvedFilter] = useState<string>("all");
+  const [inProgressFilter, setInProgressFilter] = useState<string>("all");
   
   const lineColors = ["#2563eb", "#16a34a", "#f97316", "#ef4444", "#8b5cf6", "#d946ef", "#0891b2", "#65a30d"];
 
@@ -143,6 +145,15 @@ export default function AzureDevOpsDashboard() {
     d.setUTCDate(d.getUTCDate() + 1);
     return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
   }
+
+  // ✅ CORREÇÃO: Lógica de filtragem ajustada para usar 'all'
+  const filteredResolvedItems = data.detailedWorkItems.filter(item => 
+    resolvedFilter === 'all' || item.dev === resolvedFilter
+  );
+
+  const filteredInProgressItems = data.inProgressWorkItems.filter(item =>
+    inProgressFilter === 'all' || item.dev === inProgressFilter
+  );
 
   if (error) {
     return (
@@ -296,8 +307,22 @@ export default function AzureDevOpsDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <Card className="border-gray-200">
                     <CardHeader>
-                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-green-600" /><span>Chamados Resolvidos Detalhados</span></CardTitle>
-                        <CardDescription className="text-gray-600">Lista das últimas User Stories concluídas.</CardDescription>
+                        <div className="flex justify-between items-center">
+                            <div className="space-y-1">
+                                <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-green-600" /><span>Chamados Resolvidos Detalhados</span></CardTitle>
+                                <CardDescription className="text-gray-600">Lista das últimas User Stories concluídas.</CardDescription>
+                            </div>
+                            <Select onValueChange={setResolvedFilter} defaultValue="all">
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Filtrar por dev" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {/* ✅ CORREÇÃO: Valor alterado para 'all' */}
+                                    <SelectItem value="all">Todos os Desenvolvedores</SelectItem>
+                                    {data.developers.map(dev => <SelectItem key={dev.name} value={dev.name}>{dev.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -310,7 +335,7 @@ export default function AzureDevOpsDashboard() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {data.detailedWorkItems.map((item) => (
+                                {filteredResolvedItems.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
                                             {`#${item.id} - ${item.title}`}
@@ -331,8 +356,22 @@ export default function AzureDevOpsDashboard() {
 
                 <Card className="border-gray-200">
                     <CardHeader>
-                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados não Pontuados</span></CardTitle>
-                        <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em &apos;Nova&apos;.</CardDescription>
+                        <div className="flex justify-between items-center">
+                            <div className="space-y-1">
+                                <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados não Pontuados</span></CardTitle>
+                                <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em &apos;Nova&apos;.</CardDescription>
+                            </div>
+                             <Select onValueChange={setInProgressFilter} defaultValue="all">
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Filtrar por dev" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {/* ✅ CORREÇÃO: Valor alterado para 'all' */}
+                                    <SelectItem value="all">Todos os Desenvolvedores</SelectItem>
+                                    {data.developers.map(dev => <SelectItem key={dev.name} value={dev.name}>{dev.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -345,7 +384,7 @@ export default function AzureDevOpsDashboard() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {data.inProgressWorkItems.map((item) => (
+                                {filteredInProgressItems.map((item) => (
                                     <TableRow key={item.id}>
                                         <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
                                             {`#${item.id} - ${item.title}`}
