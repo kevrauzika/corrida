@@ -359,7 +359,7 @@ export default function AzureDevOpsDashboard() {
                         <div className="flex justify-between items-center">
                             <div className="space-y-1">
                                 <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados não Pontuados</span></CardTitle>
-                                <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em &apos;Nova&apos;.</CardDescription>
+                                <CardDescription className="text-gray-600">Chamados que não atendem os critérios da competição: Ainda em desenvolvimento ou em testes.</CardDescription>
                             </div>
                              <Select onValueChange={setInProgressFilter} defaultValue="all">
                                 <SelectTrigger className="w-[180px]">
