@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, TooltipProps } from "recharts"
 import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks, ExternalLink } from "lucide-react"
 
 // Interfaces
@@ -15,14 +15,20 @@ interface Developer {
   completed: number;
   score: number;
   position?: number;
+  completed_baixo: number;
+  completed_medio: number;
+  completed_alta: number;
 }
 
-interface DetailedWorkItem {
+interface InProgressWorkItem {
   id: number;
   title: string;
   dev: string;
   qa: string;
   complexity: string;
+}
+
+interface DetailedWorkItem extends InProgressWorkItem {
   resolvedDate: string;
 }
 
@@ -35,13 +41,52 @@ interface ApiResponse {
   developers: Omit<Developer, 'position'>[];
   evolutionData: EvolutionDataEntry[];
   detailedWorkItems: DetailedWorkItem[];
+  inProgressWorkItems: InProgressWorkItem[];
 }
 
-const initialData: { developers: Developer[], evolutionData: EvolutionDataEntry[], detailedWorkItems: DetailedWorkItem[] } = {
+const initialData: { 
+    developers: Developer[], 
+    evolutionData: EvolutionDataEntry[], 
+    detailedWorkItems: DetailedWorkItem[],
+    inProgressWorkItems: InProgressWorkItem[]
+} = {
   developers: [],
   evolutionData: [],
   detailedWorkItems: [],
+  inProgressWorkItems: [],
 }
+
+// ✅ CORREÇÃO: Interface customizada para as propriedades do Tooltip
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
+  label?: string;
+}
+
+const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg text-white">
+        <p className="label font-bold text-blue-400">{`${label}`}</p>
+        <div>
+          {payload.map((pld) => (
+            <div key={pld.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: pld.color }}>{`${pld.name}: `}</span>
+              <span className="ml-2 font-semibold" style={{ color: pld.name === 'Alta' ? '#FFFFFF' : '#d1d5db' }}>{pld.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 
 export default function AzureDevOpsDashboard() {
   const [data, setData] = useState(initialData);
@@ -223,8 +268,8 @@ export default function AzureDevOpsDashboard() {
               </Card>
               <Card className="border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-black flex items-center space-x-2"><BarChart className="w-5 h-5 text-blue-600" /><span>Status dos Chamados por Dev</span></CardTitle>
-                  <CardDescription className="text-gray-600">Distribuição de chamados por categoria</CardDescription>
+                  <CardTitle className="text-black flex items-center space-x-2"><BarChart className="w-5 h-5 text-blue-600" /><span>Concluídos por Complexidade</span></CardTitle>
+                  <CardDescription className="text-gray-600">Distribuição dos chamados concluídos por desenvolvedor.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -232,53 +277,89 @@ export default function AzureDevOpsDashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12, fill: "#000" }} />
                       <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#000" }} width={120} />
-                      <Tooltip cursor={{ fill: 'rgba(239, 246, 255, 0.5)' }} contentStyle={{ backgroundColor: "#1f2937", border: "none", borderRadius: "8px", color: "#fff" }}/>
+                      <Tooltip cursor={{ fill: 'rgba(239, 246, 255, 0.5)' }} content={<CustomTooltip />} />
                       <Legend />
-                      <Bar dataKey="completed" stackId="a" fill="#16a34a" name="Concluído" />
-                      <Bar dataKey="inDevelopment" stackId="a" fill="#2563eb" name="Em Desenvolvimento" />
+                      <Bar dataKey="completed_alta" stackId="a" fill="#16a34a" name="Alta" />
+                      <Bar dataKey="completed_medio" stackId="a" fill="#1f2937" name="Média" />
+                      <Bar dataKey="completed_baixo" stackId="a" fill="#2563eb" name="Baixa" />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
-            <Card className="border-gray-200">
-              <CardHeader>
-                  <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-blue-600" /><span>Chamados Resolvidos Detalhados</span></CardTitle>
-                  <CardDescription className="text-gray-600">Lista das últimas User Stories concluídas.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead className="text-black font-semibold">Chamado</TableHead>
-                              <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
-                              <TableHead className="text-black font-semibold">QA</TableHead>
-                              <TableHead className="text-black font-semibold">Complexidade</TableHead>
-                              <TableHead className="text-black font-semibold text-right">Data Resolução</TableHead>
-                              <TableHead className="text-black font-semibold text-center">Link</TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          {data.detailedWorkItems.map((item) => (
-                              <TableRow key={item.id}>
-                                  <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
-                                      {`#${item.id} - ${item.title}`}
-                                  </TableCell>
-                                  <TableCell className="text-black">{item.dev}</TableCell>
-                                  <TableCell className="text-black">{item.qa}</TableCell>
-                                  <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
-                                  <TableCell className="text-right text-black">{formatDate(item.resolvedDate)}</TableCell>
-                                  <TableCell className="text-center">
-                                    <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-                                      <ExternalLink className="w-4 h-4 inline-block"/>
-                                    </a>
-                                  </TableCell>
-                              </TableRow>
-                          ))}
-                      </TableBody>
-                  </Table>
-              </CardContent>
-            </Card>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <Card className="border-gray-200">
+                    <CardHeader>
+                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-green-600" /><span>Chamados Resolvidos Detalhados</span></CardTitle>
+                        <CardDescription className="text-gray-600">Lista das últimas User Stories concluídas.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="text-black font-semibold">Chamado</TableHead>
+                                    <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
+                                    <TableHead className="text-black font-semibold">Complexidade</TableHead>
+                                    <TableHead className="text-black font-semibold text-center">Link</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {data.detailedWorkItems.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
+                                            {`#${item.id} - ${item.title}`}
+                                        </TableCell>
+                                        <TableCell className="text-black">{item.dev}</TableCell>
+                                        <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
+                                        <TableCell className="text-center">
+                                            <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                            <ExternalLink className="w-4 h-4 inline-block"/>
+                                            </a>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-gray-200">
+                    <CardHeader>
+                        <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados em Andamento</span></CardTitle>
+                        <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em 'Nova'.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="text-black font-semibold">Chamado</TableHead>
+                                    <TableHead className="text-black font-semibold">Desenvolvedor</TableHead>
+                                    <TableHead className="text-black font-semibold">Complexidade</TableHead>
+                                    <TableHead className="text-black font-semibold text-center">Link</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {data.inProgressWorkItems.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="font-medium text-black max-w-xs truncate" title={item.title}>
+                                            {`#${item.id} - ${item.title}`}
+                                        </TableCell>
+                                        <TableCell className="text-black">{item.dev}</TableCell>
+                                        <TableCell><Badge variant="outline">{item.complexity}</Badge></TableCell>
+                                        <TableCell className="text-center">
+                                            <a href={`https://dev.azure.com/devPracticar/TMB%20Educação/_workitems/edit/${item.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                                            <ExternalLink className="w-4 h-4 inline-block"/>
+                                            </a>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+
             <Card className="border-gray-200">
               <CardHeader>
                   <CardTitle className="text-black flex items-center space-x-2"><TrendingUp className="w-5 h-5 text-blue-600" /><span>Evolução Diária por Desenvolvedor</span></CardTitle>
@@ -311,6 +392,6 @@ export default function AzureDevOpsDashboard() {
           </>
         )}
       </main>
-    </div>
+    </div>  
   )
 }

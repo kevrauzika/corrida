@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// ✅ NOVO: Interfaces para tipagem dos dados da API
 interface WorkItemFromApi {
   id: number;
   fields: {
@@ -22,6 +21,14 @@ interface DetailedWorkItemForApi {
   qa: string;
   complexity: string;
   resolvedDate: string;
+}
+
+interface InProgressWorkItem {
+    id: number;
+    title: string;
+    dev: string;
+    qa: string;
+    complexity: string;
 }
 
 async function getWorkItemIds() {
@@ -63,7 +70,6 @@ async function getWorkItemIds() {
   return result.workItems ? result.workItems.map((item: { id: number }) => item.id) : [];
 }
   
-// ✅ ALTERAÇÃO: Adicionado tipo de retorno Promise<WorkItemFromApi[]>
 async function getWorkItemDetails(ids: number[]): Promise<WorkItemFromApi[]> {
     const org = process.env.AZURE_DEVOPS_ORG;
     const pat = process.env.AZURE_DEVOPS_PAT;
@@ -98,7 +104,6 @@ async function getWorkItemDetails(ids: number[]): Promise<WorkItemFromApi[]> {
         console.error("Erro nos detalhes do Work Item:", response.status, errorText);
         throw new Error(`Erro ao buscar detalhes de work items: ${response.statusText}`);
       }
-      // ✅ ALTERAÇÃO: Adicionado tipo para a resposta da API
       const result = await response.json() as { value: WorkItemFromApi[] };
       workItemsDetails.push(...result.value);
     }
@@ -118,10 +123,18 @@ function getPointsFromRisk(risk: string | undefined): number {
   }
 }
 
-// ✅ ALTERAÇÃO: Parâmetros e variáveis com tipos definidos
 function processDataForDashboard(workItems: WorkItemFromApi[]) {
-  const developerMap = new Map<string, { name: string; inDevelopment: number; completed: number; score: number; }>();
+  const developerMap = new Map<string, { 
+    name: string; 
+    inDevelopment: number; 
+    completed: number; 
+    score: number;
+    completed_baixo: number;
+    completed_medio: number;
+    completed_alta: number;
+  }>();
   const detailedWorkItems: DetailedWorkItemForApi[] = [];
+  const inProgressWorkItems: InProgressWorkItem[] = [];
   
   const dailyEvolutionMap = new Map<string, { [devName: string]: number }>();
   const allDevs = new Set<string>();
@@ -138,43 +151,70 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
     const fields = item.fields;
     const assignedTo = fields["System.AssignedTo"];
     const boardColumn = fields["System.BoardColumn"];
+    const state = fields["System.State"];
     const risk = fields["Microsoft.VSTS.Common.Risk"];
 
-    if (assignedTo && assignedTo.displayName && boardColumn) {
-      const devName = assignedTo.displayName;
-      allDevs.add(devName); 
+    if (!assignedTo?.displayName || !boardColumn || !state) {
+        return; // Pula itens sem os dados essenciais
+    }
 
-      if (!developerMap.has(devName)) {
-        developerMap.set(devName, { name: devName, inDevelopment: 0, completed: 0, score: 0 });
+    // ✅ CORREÇÃO FINAL: Verifica e descarta itens no estado "Nova" no início do loop.
+    if (state.trim().toLowerCase() === 'nova') {
+        return; // Ignora completamente os itens que estão no estado "Nova"
+    }
+    
+    const devName = assignedTo.displayName;
+    allDevs.add(devName); 
+
+    if (!developerMap.has(devName)) {
+      developerMap.set(devName, { 
+        name: devName, 
+        inDevelopment: 0, 
+        completed: 0, 
+        score: 0,
+        completed_baixo: 0,
+        completed_medio: 0,
+        completed_alta: 0
+      });
+    }
+    
+    const devData = developerMap.get(devName)!;
+
+    // Se não for "Nova", verifica se está "Concluído"
+    if (concludedColumns.has(boardColumn)) {
+      devData.completed++;
+      devData.score += getPointsFromRisk(risk);
+      switch (risk) {
+          case '1 - Baixo': devData.completed_baixo++; break;
+          case '2 - Médio': devData.completed_medio++; break;
+          case '3 - Alta': devData.completed_alta++; break;
       }
-      
-      const devData = developerMap.get(devName)!;
-
-      if (concludedColumns.has(boardColumn)) {
-        devData.completed++;
-        devData.score += getPointsFromRisk(risk);
-        
-        const stateChangeDateStr = fields["Microsoft.VSTS.Common.StateChangeDate"];
-        if (stateChangeDateStr) {
-          const resolvedDate = new Date(stateChangeDateStr);
-          const dateKey = resolvedDate.toISOString().split('T')[0];
-          
-          const dayData = dailyEvolutionMap.get(dateKey) || {};
-          dayData[devName] = (dayData[devName] || 0) + 1;
-          dailyEvolutionMap.set(dateKey, dayData);
-
-          detailedWorkItems.push({
-            id: item.id,
-            title: fields["System.Title"] || "N/A",
-            dev: devName,
-            qa: fields["Custom.Qualidade"]?.displayName || "N/A",
-            complexity: risk || "Não definida",
-            resolvedDate: dateKey,
-          });
-        }
-      } else if (boardColumn.toLowerCase().includes('desenvolvimento')) {
-          devData.inDevelopment++;
+      const stateChangeDateStr = fields["Microsoft.VSTS.Common.StateChangeDate"];
+      if (stateChangeDateStr) {
+        const resolvedDate = new Date(stateChangeDateStr);
+        const dateKey = resolvedDate.toISOString().split('T')[0];
+        const dayData = dailyEvolutionMap.get(dateKey) || {};
+        dayData[devName] = (dayData[devName] || 0) + 1;
+        dailyEvolutionMap.set(dateKey, dayData);
+        detailedWorkItems.push({
+          id: item.id,
+          title: fields["System.Title"] || "N/A",
+          dev: devName,
+          qa: fields["Custom.Qualidade"]?.displayName || "N/A",
+          complexity: risk || "Não definida",
+          resolvedDate: dateKey,
+        });
       }
+    } else {
+      // Se não for "Nova" e não for "Concluído", então está "Em Andamento"
+      devData.inDevelopment++;
+      inProgressWorkItems.push({
+          id: item.id,
+          title: fields["System.Title"] || "N/A",
+          dev: devName,
+          qa: fields["Custom.Qualidade"]?.displayName || "N/A",
+          complexity: risk || "Não definida",
+      });
     }
   });
 
@@ -183,17 +223,18 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
     inDevelopment: dev.inDevelopment || 0,
     completed: dev.completed || 0,
     score: dev.score || 0,
+    completed_baixo: dev.completed_baixo || 0,
+    completed_medio: dev.completed_medio || 0,
+    completed_alta: dev.completed_alta || 0,
   }));
   
   const sortedDates = Array.from(dailyEvolutionMap.keys()).sort();
   const evolutionData = sortedDates.map(date => {
       const dailyCounts = dailyEvolutionMap.get(date)!;
       const entry: { date: string; [key: string]: string | number } = { date };
-      
       allDevs.forEach(dev => {
           entry[dev] = dailyCounts[dev] || 0;
       });
-
       return entry;
   });
 
@@ -201,6 +242,7 @@ function processDataForDashboard(workItems: WorkItemFromApi[]) {
     developers: finalDevelopersData,
     evolutionData: evolutionData,
     detailedWorkItems: detailedWorkItems.sort((a, b) => new Date(b.resolvedDate).getTime() - new Date(a.resolvedDate).getTime()),
+    inProgressWorkItems: inProgressWorkItems,
   };
 }
 
@@ -213,7 +255,7 @@ export async function GET() {
 
     if (workItemIds.length === 0) {
         console.log("[2a] No items found for this sprint. Returning empty data.");
-        return NextResponse.json({ developers: [], evolutionData: [], detailedWorkItems: [] });
+        return NextResponse.json({ developers: [], evolutionData: [], detailedWorkItems: [], inProgressWorkItems: [] });
     }
 
     console.log("[3] Fetching details for all items...");
