@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, TooltipProps } from "recharts"
+// ✅ CORREÇÃO: Removido 'TooltipProps' que não estava sendo usado.
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from "recharts"
 import { RefreshCw, Trophy, TrendingUp, Users, Calendar, AlertTriangle, ListChecks, ExternalLink } from "lucide-react"
 
 // Interfaces
@@ -56,7 +57,6 @@ const initialData: {
   inProgressWorkItems: [],
 }
 
-// ✅ CORREÇÃO: Interface customizada para as propriedades do Tooltip
 interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{
@@ -326,8 +326,9 @@ export default function AzureDevOpsDashboard() {
 
                 <Card className="border-gray-200">
                     <CardHeader>
+                        {/* ✅ CORREÇÃO: Aspas simples trocadas por &apos; */}
                         <CardTitle className="text-black flex items-center space-x-2"><ListChecks className="w-5 h-5 text-orange-500" /><span>Chamados em Andamento</span></CardTitle>
-                        <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em 'Nova'.</CardDescription>
+                        <CardDescription className="text-gray-600">Lista de chamados que não estão concluídos ou em &apos;Nova&apos;.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -392,6 +393,6 @@ export default function AzureDevOpsDashboard() {
           </>
         )}
       </main>
-    </div>  
+    </div>
   )
 }
